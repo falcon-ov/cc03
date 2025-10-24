@@ -316,6 +316,12 @@ _Для всех инстансов использовал_:
    И снова при попытке, создать instance, я получаю ошибку `Instance launch failed`
    ![img](/images/img_27.png)
 
+   К счастью, в этот раз через 20 минут мне пришло письмо о снятии блокировки в регионе, и я наконец-то смог запустить instance спустя 5-6 дней...
+   ![img](/images/img_28.png)
+   ![img](/images/img_29.png)
+   ![img](/images/img_30.png)
+
+
 ### Шаг 9. Проверка работы
 
 На этом этапе создал:
@@ -331,23 +337,40 @@ _Для всех инстансов использовал_:
 Теперь было важно убедиться, что сеть функционирует корректно и что приватная подсеть действительно изолирована от внешнего мира.
 
 1. Подождал, пока все инстансы запустятся (статус `running`).
+![img](/images/img_31.png)
 2. Нашел публичный IP-адрес `web-server` и открыл его в браузере. Увидел страницу с информацией о PHP.
+![img](/images/img_32.png)
+![img](/images/img_33.png)
 3. Подключился к `bastion-host` по SSH:
    ```bash
    ssh -i <your-nickname>-key.pem ec2-user@<Bastion-Host-Public-IP>
    ```
+   ```text
+   PS. так как я продолжил выплолнение работы с ноутбука, я изменил в security group для bastion my-ip на свой ip на ноуте.
+   ```
+   ![img](/images/img_34.png)
+
 4. Проверил подключение к интернету с `bastion-host`, выполнив `ping`:
 
    ```bash
       ping -c 4 google.com
    ```
+   ![img](/images/img_35.png)
 
-   > Если пинги успешны, значит публичная подсеть и IGW настроены правильно.
+   > Пинги успешны, значит публичная подсеть и IGW настроены правильно.
 
 5. С `bastion-host` попробовал подключиться к `db-server`:
    ```bash
    mysql -h <DB-Server-Private-IP> -u root -p
+   mysql -h 10.19.2.124 -u root -p
    ```
+   ![img](/images/img_36.png)
+   ![img](/images/img_37.png)
+   ![img](/images/img_38.png)
+
+   Вначале, нее мог подлючиться к db через bastion, добавил новое inbound правило, чтобы дать доступ к бд через bastion.
+   Затем, подлючение к серверу через bastion к db удалось, но теперь сама БД отклоняла запрос от хоста.
+
    > Если подключение успешно, значит приватная подсеть и NAT Gateway настроены правильно.
 6. Вышел из `db-server` и `bastion-host`.
 
@@ -361,26 +384,37 @@ _Для всех инстансов использовал_:
 
    ```bash
    eval "$(ssh-agent -s)"
-   ssh-add <your-nickname>-key.pem
+   ssh-add student-key-k19.pem
    ```
+   ![img](/images/img_39.png)
 
 2. Подключился к `bastion-host` с опцией `-A` и '-J':
 
    ```bash
    ssh -A -J ec2-user@<Bastion-Host-Public-IP> ec2-user@<DB-Server-Private-IP>
    ```
+   ```bash
+   ssh -A -J ec2-user@3.79.230.58 ec2-user@10.19.2.124
+   ```
+
+   ![img](/images/img_40.png)
 
    > Что делает опция `-A` и `-J`?
+
+   > Ответ: -A - включает SSH agent forwarding, чтобы ключ с локальной машины был доступен на db-server.
+   -J - позволяет подключиться через jump host (bastion), т.е. туннелирует соединение через него.
 
 3. Обновил систему на `db-server`:
    ```bash
    sudo dnf update -y
    ```
+   ![img](/images/img_41.png)
 4. Установил `htop`:
 
    ```bash
    sudo dnf install -y htop
    ```
+   ![img](/images/img_42.png)
 
    > Если обновление и установка прошли успешно, значит NAT Gateway работает корректно.
 
@@ -389,6 +423,7 @@ _Для всех инстансов использовал_:
    ```bash
    mysql -u root -p
    ```
+   ![img](/images/img_43.png)
 
    > Если не установлен mysql клиент, установил его командой `sudo dnf install -y mariadb105`.
    > Введел пароль `StrongPassword123!`.
@@ -398,24 +433,33 @@ _Для всех инстансов использовал_:
    ```bash
    ssh-agent -k
    ```
+   ![img](/images/img_44.png)
 
 ## Завершение работы
 
 После выполнения всех шагов удалил созданные ресурсы в AWS, чтобы избежать ненужных затрат. Выполнил удаление в следующем порядке:
 
 1. Удалил EC2-инстансы.
+![img](/images/img_45.png)
 2. Удалил NAT Gateway (подождал, пока он будет удалён).
+![img](/images/img_46.png)
 3. Удалил Elastic IP.
    1. `VPC` -> `Elastic IPs` -> выбрал EIP -> `Actions` -> `Release Elastic IP addresses`.
+   ![img](/images/img_47.png)
 4. Удалил Security Groups.
    1. `VPC` -> `Security Groups` -> выбрал нужную группу -> `Actions` -> `Delete Security Group`.
+   ![img](/images/img_48.png)
+   ![img](/images/img_49.png)
 5. Удалил Internet Gateway.
    1. `VPC` -> `Internet Gateways` -> выбрал IGW -> `Actions` -> `Detach from VPC` -> подтвердил.
    2. Затем снова выбрал IGW -> `Actions` -> `Delete internet gateway`.
+   ![img](/images/img_50.png)
+   ![img](/images/img_51.png)
 6. Удалил созданную VPC.
    1. `VPC` -> `Your VPCs` -> выбрал VPC -> `Actions` -> `Delete VPC`.
    2. Подтвердил удаление.
    3. Если удаление не удавалось, проверил, что все ресурсы (подсети, таблицы маршрутов и т.д.) были удалены.
+   ![img](/images/img_52.png)
 
 > Удаление ресурсов в неправильном порядке может привести к ошибкам, так как некоторые ресурсы зависят от других.
 
